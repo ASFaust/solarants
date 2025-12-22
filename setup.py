@@ -12,12 +12,13 @@ ext_modules = [
             'src/bindings.cpp',
             'src/System.cpp',
             'src/Body.cpp',
+            'src/Agent.cpp',
         ],
         include_dirs=[
             "include/",
         ],
         language='c++',
-        #extra_compile_args=['-Wno-sign-compare', '-Wno-reorder', '-O3', '-std=c++17']
+        extra_compile_args=['-O3', '-std=c++23'],
         ),
 ]
 

@@ -1,4 +1,5 @@
 from collections import deque
+import time
 from typing import Deque, Dict, List, Optional, Tuple
 
 import numpy as np
@@ -15,10 +16,9 @@ class Viewer:
         zoom_min: float = 1e-6,
         zoom_max: float = 1e3,
         zoom_step: float = 1.1,
-        selection_radius_px: float = 6.0,
         substeps_per_frame: int = 1,
         trail_min_delta: float = 2.0,
-        trail_max_length: float = 200.0,
+        trail_max_length: float = 20000.0,
         window_name: str = "Solar System Viewer",
     ):
         self.system = system
@@ -31,7 +31,6 @@ class Viewer:
         self.zoom_min = float(zoom_min)
         self.zoom_max = float(zoom_max)
         self.zoom_step = float(zoom_step)
-        self.selection_radius_px = float(selection_radius_px)
         self.substeps_per_frame = int(substeps_per_frame)
         self.trail_min_delta = float(trail_min_delta)
         self.trail_max_length = float(trail_max_length)
@@ -41,7 +40,8 @@ class Viewer:
         self.paused = False
 
         self._mouse_pos = (0, 0)
-        self._last_props: Dict[str, dict] = {}
+        self._last_bodies: List[object] = []
+        self._last_body_by_name: Dict[str, object] = {}
         self._last_names: List[str] = []
 
         self._ruler_active = False
@@ -56,6 +56,11 @@ class Viewer:
         self._trails: Dict[str, Deque[np.ndarray]] = {}
         self._trail_lengths: Dict[str, float] = {}
         self._sim_steps = 0
+        self._ema_steps_per_sec: Optional[float] = None
+        self._perf_last_time: Optional[float] = None
+        self._perf_last_sim_steps = 0
+        self._ema_alpha = 0.15
+        self._show_gravity = True
 
     def sim_to_screen(self, sim_pos: np.ndarray) -> Tuple[int, int]:
         x = (sim_pos[0] - self.center[0]) * self.zoom + self.width * 0.5
@@ -73,22 +78,19 @@ class Viewer:
         return np.array([x, y], dtype=np.float64)
 
     def _pick_body(self, screen_pos: Tuple[int, int]) -> Optional[str]:
-        if not self._last_props:
+        if not self._last_body_by_name:
             return None
         cursor_sim = self.screen_to_sim(screen_pos)
-        selection_radius_sim = self.selection_radius_px / max(self.zoom, 1e-12)
         best_name = None
         best_dist2 = None
         for name in self._last_names:
-            prop = self._last_props[name]
-            dx = prop["position_x"] - cursor_sim[0]
-            dy = prop["position_y"] - cursor_sim[1]
-            radius = prop["radius"] + selection_radius_sim
-            dist2 = dx * dx + dy * dy
-            if dist2 <= radius * radius:
-                if best_dist2 is None or dist2 < best_dist2:
-                    best_dist2 = dist2
-                    best_name = name
+            body = self._last_body_by_name[name]
+            dx = body.position[0] - cursor_sim[0]
+            dy = body.position[1] - cursor_sim[1]
+            dist = float(np.hypot(dx, dy)) - float(body.radius)
+            if best_dist2 is None or dist < best_dist2:
+                best_dist2 = dist
+                best_name = name
         return best_name
 
     def _update_hover(self):
@@ -138,30 +140,48 @@ class Viewer:
             surface.blit(label, label_pos)
 
     def _draw_hud(self, surface: pygame.Surface):
-        lines = [
-            f"zoom: {self.zoom:.6f}",
-            f"paused: {self.paused}",
-            f"simulation speed: {self.substeps_per_frame}x",
-            f"time units: {self._sim_steps}",
-        ]
-        if self.focus_name is not None:
-            lines.append(f"focus: {self.focus_name}")
-        if self.hover_name is not None:
-            lines.append(f"hover: {self.hover_name}")
-        if self.focus_name is not None and self.focus_name in self._last_props:
-            prop = self._last_props[self.focus_name]
-            vx = prop["velocity_x"]
-            vy = prop["velocity_y"]
-            speed = float(np.hypot(vx, vy))
-            lines.append(f"vel: ({vx:.3f}, {vy:.3f}) |v| {speed:.3f}")
+        def fmt(value: float, decimals: int = 3) -> str:
+            return f"{value:,.{decimals}f}"
 
         if self._font is None:
             return
 
+        entries: List[Tuple[str, str]] = [
+            ("zoom", f"{self.zoom:.6f}"),
+            ("paused", str(self.paused)),
+            ("simulation speed", f"{self.substeps_per_frame}x"),
+            ("simulation steps", f"{self._sim_steps:,}"),
+        ]
+        if self._ema_steps_per_sec is None:
+            entries.append(("sim steps/sec (ema)", "n/a"))
+        else:
+            entries.append(("sim steps/sec (ema)", fmt(self._ema_steps_per_sec, 1)))
+        if self.focus_name is not None:
+            entries.append(("focus", self.focus_name))
+        if self.hover_name is not None:
+            entries.append(("hover", self.hover_name))
+        if self.focus_name is not None and self.focus_name in self._last_body_by_name:
+            body = self._last_body_by_name[self.focus_name]
+            vx = body.velocity[0]
+            vy = body.velocity[1]
+            speed = float(np.hypot(vx, vy))
+            entries.append(("vel", f"({fmt(vx)}, {fmt(vy)}) |v| {fmt(speed)}"))
+            entries.append(("mass", fmt(body.mass)))
+            entries.append(("density", fmt(body.density)))
+            entries.append(("radius", fmt(body.radius)))
+            entries.append(("surface gravity", fmt(body.surfaceGravity)))
+            entries.append(("domain radius", fmt(body.domainRadius)))
+
+        label_widths = [self._font.size(f"{label}:")[0] for label, _ in entries]
+        max_label_width = max(label_widths, default=0)
+        x_label = 10
+        x_value = x_label + max_label_width + 8
         y = 8
-        for line in lines:
-            label = self._font.render(line, True, (220, 220, 220))
-            surface.blit(label, (10, y))
+        for label, value in entries:
+            label_surf = self._font.render(f"{label}:", True, (220, 220, 220))
+            value_surf = self._font.render(value, True, (220, 220, 220))
+            surface.blit(label_surf, (x_label, y))
+            surface.blit(value_surf, (x_value, y))
             y += 18
 
         controls = "LMB drag pan  LMB click focus  RMB drag ruler  wheel zoom  space pause  esc quit"
@@ -169,21 +189,21 @@ class Viewer:
         surface.blit(label, (10, self.height - 20))
 
     def _update_camera_follow(self):
-        if self.focus_name is None or not self._last_props:
+        if self.focus_name is None or not self._last_body_by_name:
             return
-        if self.focus_name not in self._last_props:
+        if self.focus_name not in self._last_body_by_name:
             self._set_focus(None)
             return
-        prop = self._last_props[self.focus_name]
-        target = np.array([prop["position_x"], prop["position_y"]], dtype=np.float64)
+        body = self._last_body_by_name[self.focus_name]
+        target = np.array([body.position[0], body.position[1]], dtype=np.float64)
         self.center[:] = target
 
     def _draw_bodies(self, surface: pygame.Surface):
         for name in self._last_names:
-            prop = self._last_props[name]
-            pos = np.array([prop["position_x"], prop["position_y"]], dtype=np.float64)
+            body = self._last_body_by_name[name]
+            pos = np.array([body.position[0], body.position[1]], dtype=np.float64)
             px = self.sim_to_screen(pos)
-            radius_px = max(2, int(round(prop["radius"] * self.zoom)))
+            radius_px = max(2, int(round(body.radius * self.zoom)))
             color = (60, 200, 60)
             if name == self.hover_name:
                 color = (0, 255, 255)
@@ -194,13 +214,13 @@ class Viewer:
     def _update_trails(self):
         min_delta2 = self.trail_min_delta * self.trail_min_delta
         origin = None
-        if self.focus_name is not None and self.focus_name in self._last_props:
-            focus_prop = self._last_props[self.focus_name]
-            origin = np.array([focus_prop["position_x"], focus_prop["position_y"]], dtype=np.float64)
+        if self.focus_name is not None and self.focus_name in self._last_body_by_name:
+            focus_body = self._last_body_by_name[self.focus_name]
+            origin = np.array([focus_body.position[0], focus_body.position[1]], dtype=np.float64)
 
         for name in self._last_names:
-            prop = self._last_props[name]
-            pos = np.array([prop["position_x"], prop["position_y"]], dtype=np.float64)
+            body = self._last_body_by_name[name]
+            pos = np.array([body.position[0], body.position[1]], dtype=np.float64)
             if origin is not None:
                 pos = pos - origin
             if name not in self._trails:
@@ -232,7 +252,7 @@ class Viewer:
             self._trail_lengths.pop(name, None)
 
     def _draw_trails(self, surface: pygame.Surface):
-        use_relative = self.focus_name is not None and self.focus_name in self._last_props
+        use_relative = self.focus_name is not None and self.focus_name in self._last_body_by_name
         for name in self._last_names:
             trail = self._trails.get(name)
             if not trail or len(trail) < 2:
@@ -244,12 +264,39 @@ class Viewer:
             color = (80, 120, 180) if name != self.focus_name else (160, 200, 255)
             pygame.draw.lines(surface, color, False, points, 1)
 
+    def _draw_hover_gravity(self, surface: pygame.Surface):
+        if self._font is None or self.hover_name is None or not self._show_gravity:
+            return
+        cursor_sim = self.screen_to_sim(self._mouse_pos)
+        gravity = np.array(self.system.calculateGravity(cursor_sim), dtype=np.float64)
+        magnitude = float(np.hypot(gravity[0], gravity[1]))
+        if magnitude <= 0.0:
+            return
+        direction = gravity / magnitude
+        start = np.array(self._mouse_pos, dtype=np.float64)
+        arrow_len_px = 75.0
+        end = start + direction * arrow_len_px
+        color = (255, 140, 80)
+        pygame.draw.line(surface, color, start, end, 2)
+        head_len = 8.0
+        head_width = 5.0
+        perp = np.array([-direction[1], direction[0]], dtype=np.float64)
+        tip = end
+        left = tip - direction * head_len + perp * head_width
+        right = tip - direction * head_len - perp * head_width
+        pygame.draw.polygon(surface, color, [tip, left, right])
+        label = self._font.render(f"{magnitude:,.3f}", True, color)
+        label_pos = (int(end[0] + 6), int(end[1] - 10))
+        surface.blit(label, label_pos)
+
     def run(self):
         pygame.init()
-        screen = pygame.display.set_mode((self.width, self.height))
+        screen = pygame.display.set_mode((self.width, self.height), pygame.RESIZABLE)
         pygame.display.set_caption(self.window_name)
         self._font = pygame.font.Font(None, 18)
         clock = pygame.time.Clock()
+        self._perf_last_time = time.perf_counter()
+        self._perf_last_sim_steps = self._sim_steps
 
         while not self._should_quit:
             for event in pygame.event.get():
@@ -257,9 +304,11 @@ class Viewer:
                     self._should_quit = True
                 elif event.type == pygame.KEYDOWN:
                     if event.key == pygame.K_ESCAPE:
-                        self._should_quit = True
+                        self._set_focus(None)
                     elif event.key == pygame.K_SPACE:
                         self.paused = not self.paused
+                    elif event.key == pygame.K_g:
+                        self._show_gravity = not self._show_gravity
                     elif event.key == pygame.K_PERIOD:
                         self.substeps_per_frame = max(1, self.substeps_per_frame * 2)
                     elif event.key == pygame.K_COMMA:
@@ -295,7 +344,10 @@ class Viewer:
                 elif event.type == pygame.MOUSEBUTTONUP:
                     if event.button == 1:
                         if not self._dragging:
-                            self._set_focus(self._pick_body(event.pos))
+                            picked = self._pick_body(event.pos)
+                            if picked == self.focus_name:
+                                picked = None
+                            self._set_focus(picked)
                         self._dragging = False
                         self._drag_start_pos = None
                         self._drag_start_center = None
@@ -306,14 +358,36 @@ class Viewer:
                 elif event.type == pygame.MOUSEWHEEL:
                     self._mouse_pos = pygame.mouse.get_pos()
                     self._apply_zoom_at(self._mouse_pos, event.y)
+                elif event.type == pygame.VIDEORESIZE:
+                    self.width = int(event.w)
+                    self.height = int(event.h)
+                    screen = pygame.display.set_mode((self.width, self.height), pygame.RESIZABLE)
 
             if not self.paused:
-                for _ in range(self.substeps_per_frame):
-                    self.system.step()
+                self.system.step(self.substeps_per_frame)
                 self._sim_steps += self.substeps_per_frame
+            now = time.perf_counter()
+            if self.paused:
+                self._perf_last_time = now
+                self._perf_last_sim_steps = self._sim_steps
+            elif self._perf_last_time is not None:
+                dt = now - self._perf_last_time
+                if dt > 0.0:
+                    sim_steps_delta = self._sim_steps - self._perf_last_sim_steps
+                    inst_rate = sim_steps_delta / dt
+                    if self._ema_steps_per_sec is None:
+                        self._ema_steps_per_sec = inst_rate
+                    else:
+                        self._ema_steps_per_sec = (
+                            (1.0 - self._ema_alpha) * self._ema_steps_per_sec
+                            + self._ema_alpha * inst_rate
+                        )
+                self._perf_last_time = now
+                self._perf_last_sim_steps = self._sim_steps
 
-            self._last_props = self.system.getAllBodyProperties()
-            self._last_names = sorted(self._last_props.keys())
+            self._last_bodies = list(self.system.bodies)
+            self._last_body_by_name = {body.name: body for body in self._last_bodies}
+            self._last_names = sorted(self._last_body_by_name.keys())
             self._mouse_pos = pygame.mouse.get_pos()
             self._update_hover()
             self._update_camera_follow()
@@ -322,6 +396,7 @@ class Viewer:
             screen.fill((0, 0, 0))
             self._draw_trails(screen)
             self._draw_bodies(screen)
+            self._draw_hover_gravity(screen)
             self._draw_ruler(screen)
             self._draw_hud(screen)
 

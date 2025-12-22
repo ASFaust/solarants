@@ -20,6 +20,7 @@ struct Vec2 {
     constexpr Vec2& operator+=(const Vec2& v) { x += v.x; y += v.y; return *this; }
     constexpr Vec2& operator-=(const Vec2& v) { x -= v.x; y -= v.y; return *this; }
     constexpr Vec2& operator*=(double s) { x *= s; y *= s; return *this; }
+    constexpr Vec2& operator/=(double s) { x /= s; y /= s; return *this; }
 
     // Dot product
     constexpr double dot(const Vec2& v) const {

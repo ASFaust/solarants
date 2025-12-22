@@ -6,50 +6,33 @@
 
 namespace py = pybind11;
 
-System::System(double sunMass, double sunDensity, double G_, double deltaTime_){
+System::System(double G_, double deltaTime_){
     G = G_;
     deltaTime = deltaTime_;
-    sun = new Body("Sun",Vec2(0,0),Vec2(0,0), sunMass, sunDensity);
-    allBodies.push_back(sun);
-    gravityGeneratingBodies.push_back(sun);
 }
 
-unordered_map<string,unordered_map<string, double>> System::getAllBodyProperties() const {
-    unordered_map<string,unordered_map<string, double>> propertiesMap;
-    for (const Body* body : allBodies) {
-        propertiesMap[body->name] = body->getProperties();
+Body* System::getBodyByName(const string& name) const {
+    for (Body* body : allBodies) {
+        if (body->name == name) {
+            return body;
+        }
     }
-    return propertiesMap;
+    return nullptr; // Not found
 }
 
 void System::addBody(
         const string& name,
+        Vec2 position,
+        Vec2 velocity,
         double mass,
         double density,
-        bool emitGravity,
-        double orbital_radius,
-        double initial_angle,
-        double ellipsity) {
-    // Direction from sun
-    Vec2 radial_dir(std::cos(initial_angle), std::sin(initial_angle));
-    Vec2 tangent_dir(-radial_dir.y, radial_dir.x); // 90° CCW
-
-    // Position relative to sun
-    Vec2 position = sun->position + radial_dir * orbital_radius;
-
-    // Semi-major axis interpretation
-    double a = orbital_radius / ellipsity;
-
-    // Gravitational parameter
-    double mu = G * sun->mass;
-
-    // Vis-viva equation
-    double orbital_speed = std::sqrt(mu * (2.0 / orbital_radius - 1.0 / a));
-
-    // Velocity (purely tangential at apo/periapsis)
-    Vec2 velocity = sun->velocity + tangent_dir * orbital_speed;
-
-    Body* body = new Body(name, position, velocity, mass, density);
+        bool emitGravity
+    ) {
+    if(getBodyByName(name)){
+        throw std::runtime_error("Body name already exists: " + name);
+    }
+    
+    Body* body = new Body(this, name, position, velocity, mass, density);
 
     allBodies.push_back(body);
 
@@ -58,48 +41,99 @@ void System::addBody(
     }
 }
 
-void System::addMoon(
-    const string& name,
+// e.g. to split a mass into a moon orbiting a host body
+//or a planet orbiting a sun
+//the mass is deducted from the host body
+//the orbit (radius etc.) is calculated relative to the host body
+void System::splitBody(
     const string& hostName,
+    const string& splitBodyName,
     double mass,
     double density,
     bool emitGravity,
     double orbital_radius,
     double initial_angle,
-    double ellipsity) {
+    double ellipsity,
+    bool prograde
+) {
     // Find host body
-    Body* hostBody = nullptr;
-    for (Body* body : allBodies) {
-        if (body->name == hostName) {
-            hostBody = body;
-            break;
-        }
-    }   
+    Body* hostBody = getBodyByName(hostName);
     if (!hostBody) {
         throw std::runtime_error("Host body not found: " + hostName);
     }
-    // subtract moon mass from host body mass
-    hostBody->mass -= mass; 
-    // Direction from host
+    if(getBodyByName(splitBodyName)){
+        throw std::runtime_error("Split body name already exists: " + splitBodyName);
+    }
+    // Deduct mass from host body
+    if (hostBody->getMass() < mass) {
+        throw std::runtime_error("Host body does not have enough mass to split.");
+    }
+    hostBody->setMass(hostBody->getMass() - mass);
+    // Direction from host body
     Vec2 radial_dir(std::cos(initial_angle), std::sin(initial_angle));
-    Vec2 tangent_dir(-radial_dir.y, radial_dir.x); // 90° CCW   
-    // Position relative to host
+    Vec2 tangent_dir(-radial_dir.y, radial_dir.x); // 90° CCW
+    // Position relative to host body
     Vec2 position = hostBody->position + radial_dir * orbital_radius;
     // Semi-major axis interpretation
     double a = orbital_radius / ellipsity;
     // Gravitational parameter
-    double mu = G * hostBody->mass;
+    double mu = G * hostBody->getMass();
     // Vis-viva equation
     double orbital_speed = std::sqrt(mu * (2.0 / orbital_radius - 1.0 / a));
     // Velocity (purely tangential at apo/periapsis)
-    Vec2 velocity = hostBody->velocity + tangent_dir * orbital_speed;   
-    Body* body = new Body(name, position, velocity, mass, density);   
-    allBodies.push_back(body);   
+    double massRatio = mass / (hostBody->getMass() + mass);
+    Vec2 v_rel = tangent_dir * orbital_speed;
+
+    if (!prograde) {
+        v_rel = v_rel * -1.0;
+    }
+
+    hostBody->velocity -= v_rel * massRatio;
+    Vec2 child_velocity = hostBody->velocity + v_rel * (1.0 - massRatio);
+
+    Body* body = new Body(this, splitBodyName, position, child_velocity, mass, density);
+
+    body->parent = hostBody;
+
+    allBodies.push_back(body);
+
     if(emitGravity){
         gravityGeneratingBodies.push_back(body);
     }
 }
 
+void System::addAgent(
+    const string& hostBodyName,
+    const string& agentName,
+    double mass,
+    double radius,
+    double initial_angle, //where on the surface to spawn. in radians
+    bool emitGravity
+) {
+    Body* hostBody = getBodyByName(hostBodyName);
+    if (!hostBody) {
+        throw std::runtime_error("Host body not found: " + hostBodyName);
+    }
+    if(getBodyByName(agentName)){
+        throw std::runtime_error("Agent name already exists: " + agentName);
+    }
+
+    Vec2 radial_dir(std::cos(initial_angle), std::sin(initial_angle));
+    Vec2 position = hostBody->position + radial_dir * (hostBody->getRadius() + radius);
+    Vec2 velocity = hostBody->velocity; // start with host body's velocity
+
+    double density = (3.0 * mass) / (4.0 * M_PI * radius * radius * radius);
+
+    Agent* agent = new Agent(this, agentName, position, velocity, mass, density, hostBody);
+
+    //cast to Body* and add to allBodies
+    allBodies.push_back(static_cast<Body*>(agent));
+    allAgents.push_back(agent);
+
+    if(emitGravity){
+        gravityGeneratingBodies.push_back(static_cast<Body*>(agent));
+    }
+}
 
 void System::initialize(){
     //initialize all bodies for leapfrog integration
@@ -109,65 +143,94 @@ void System::initialize(){
     }
 }
 
-void System::step() {
-    Vec2 totalVelocity(0.0, 0.0);
+void System::step(int n) {
+    for (int i = 0; i < n; ++i) {   
+        Vec2 totalVelocity(0.0, 0.0);
 
-    // 1. drift
-    for (Body* body : allBodies) {
-        body->position += body->velocity * deltaTime;
-    }
+        // 1. drift
+        for (Body* body : allBodies) {
+            body->position += body->velocity * deltaTime;
+        }
 
-    // 2. full kick
-    for (Body* body : allBodies) {
-        Vec2 totalGravity = calculateGravity(body);
-        body->velocity += totalGravity * deltaTime;
-        totalVelocity += body->velocity;
-    }
+        // 2. full kick
+        for (Body* body : allBodies) {
+            body->velocity += calculateGravity(body) * deltaTime;
+        }
 
+        // 3 control forces from agents
+        for (Agent* agent : allAgents) {
+            agent->velocity += agent->controlForce * agent->getInvMass() * deltaTime;
+            agent->controlForce = Vec2(0.0, 0.0); // reset control force after applying
+        }
 
-    // 3. remove sun position drift: sun always sits at (0,0)
-    Vec2 sunDrift = sun->position;
-    sun->position = Vec2(0.0, 0.0);
-    for (Body* body : allBodies) {
-        body->position -= sunDrift;
-    }
-}
+        // 4 compute collisions
+        resolveCollisions();
 
-
-
-py::array_t<double> System::drawGravityField(int resolution, double radius) const {
-    // shape = (resolution, resolution)
-    py::array_t<double> field({resolution, resolution});
-    auto buf = field.mutable_unchecked<2>();
-
-    for (int i = 0; i < resolution; ++i) {
-        for (int j = 0; j < resolution; ++j) {
-            double x = (static_cast<double>(i) / (resolution - 1) - 0.5) * 2.0 * radius;
-            double y = (static_cast<double>(j) / (resolution - 1) - 0.5) * 2.0 * radius;
-            buf(i, j) = calculateGravity(Vec2(x, y)).norm();
+        for (Body* body : allBodies) {
+            body->velocity += body->collisionForce * body->getInvMass() * deltaTime;
+            body->collisionForce = Vec2(0.0, 0.0); // reset collision force after applying
         }
     }
-
-    return field;
 }
+
+void System::resolveCollisions() {
+    for (size_t i = 0; i < allBodies.size(); ++i) {
+        Body* A = allBodies[i];
+        const double invMassA = A->getInvMass();
+        if (invMassA == 0.0) continue;
+
+        for (size_t j = 0; j < allBodies.size(); ++j) {
+            if (i == j) continue;
+            Body* B = allBodies[j];
+            const double invMassB = B->getInvMass();
+            Vec2 deltaPos = B->position - A->position;
+            double dist2 = deltaPos.norm2();
+
+            double radiusSum = A->getRadius() + B->getRadius();
+            double radiusSum2 = radiusSum * radiusSum;
+            if (dist2 < radiusSum2) {
+                // Collision detected
+                double dist = std::sqrt(dist2);
+                Vec2 collisionNormal;
+                if (dist > 1e-12) {
+                    collisionNormal = deltaPos / dist;
+                } else {
+                    collisionNormal = Vec2(1.0, 0.0); // arbitrary direction    
+                }
+                double penetrationDepth = radiusSum - dist;
+                Vec2 force = collisionNormal * penetrationDepth;
+                A->collisionForce -= force;
+                B->collisionForce += force;
+                Vec2 relativeVelocity = B->velocity - A->velocity;
+                //we also dampen relative velocity by applying force opposite to relative velocity
+                //weighted by the inverse masses so that lighter bodies are affected more
+                double factor = invMassA / (invMassA + invMassB);
+                double scaling = 0.01;
+                A->collisionForce -= relativeVelocity * factor * scaling;
+                B->collisionForce += relativeVelocity * (1.0 - factor) * scaling;
+            }
+        }
+    }
+}
+
 
 Vec2 System::calculateGravity(Body* targetBody) {
-       Vec2  totalGravity(0.0, 0.0);
+    Vec2  totalGravity(0.0, 0.0);
 
-        constexpr double eps = 1e-4;  // softening length (tune in sim units)
+    constexpr double eps = 1e-4;  // softening length (tune in sim units)
 
-        for (Body* body : gravityGeneratingBodies) {
-            if (body == targetBody) continue; // skip self-gravity
-            Vec2 d = body->position - targetBody->position;
+    for (Body* body : gravityGeneratingBodies) {
+        if (body == targetBody) continue; // skip self-gravity
+        Vec2 d = body->position - targetBody->position;
 
-            double r2 = d.norm2() + eps * eps;
-            double inv_r = 1.0 / std::sqrt(r2);
-            double inv_r3 = inv_r / r2;
+        double r2 = d.norm2() + eps * eps;
+        double inv_r = 1.0 / std::sqrt(r2);
+        double inv_r3 = inv_r / r2;
 
-            totalGravity += d * (G * body->mass * inv_r3);
-        }
+        totalGravity += d * (G * body->getMass() * inv_r3);
+    }
 
-        return totalGravity;
+    return totalGravity;
 }
 
 Vec2 System::calculateGravity(const Vec2& location) const {
@@ -182,7 +245,7 @@ Vec2 System::calculateGravity(const Vec2& location) const {
         double inv_r = 1.0 / std::sqrt(r2);
         double inv_r3 = inv_r / r2;
 
-        totalGravity += d * (G * body->mass * inv_r3);
+        totalGravity += d * (G * body->getMass() * inv_r3);
     }
 
     return totalGravity;
@@ -203,7 +266,7 @@ double System::getTotalPotentialEnergy() const {
             Vec2 direction = allBodies[j]->position - allBodies[i]->position;
             double distance = direction.norm();
             if (distance > 1e-12) { // avoid division by zero
-                totalPE -= G * allBodies[i]->mass * allBodies[j]->mass / distance;
+                totalPE -= G * allBodies[i]->getMass() * allBodies[j]->getMass() / distance;
             }
         }
     }
