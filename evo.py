@@ -142,9 +142,9 @@ class EDAConfig:
     hidden_dim: int = 32
 
     # Evaluation
-    eval_episodes: int = 1                # increase to 3 later for robustness
-    max_steps: int = 1000
-    n_substeps: int = 10
+    eval_episodes: int = 3                # increase to 3 later for robustness
+    max_steps: int = 10000
+    n_substeps: int = 1
 
     # Init diversity
     init_mix_sigmas: tuple = (0.01, 0.1, 0.5)
