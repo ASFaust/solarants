@@ -136,7 +136,7 @@ class EDAConfig:
     # Population / archive
     population_size: int = 1000
     elite_size: int = 1000                  # elites selected from *global* archive
-    archive_max_size: int = 10000          # keep only best K overall
+    archive_max_size: int = 100000          # keep only best K overall
     min_archive_to_fit: int = 3000          # before this, keep exploring (broad sampling)
 
     # Policy
@@ -157,12 +157,12 @@ class EDAConfig:
     ridge: float = 1e-12                  # tiny diagonal ridge for numerical stability
 
     # Exploration inflation (covariance multiplier)
-    exploration_scale_start: float = 2.0  # Sigma <- (scale^2) * Sigma, early
+    exploration_scale_start: float = 1.0  # Sigma <- (scale^2) * Sigma, early
     exploration_scale_end: float = 1.0    # anneal toward this
-    exploration_anneal_gens: int = 80
+    exploration_anneal_gens: int = 1
 
     # Misc
-    generations: int = 100
+    generations: int = 1000
     seed: int = 42
     n_workers = 30          # None = use all cores
 
@@ -250,6 +250,7 @@ class GlobalArchiveFullCovEDA:
 
         # Numerical ridge
         if self.cfg.ridge > 0.0:
+            print(f"Adding ridge {self.cfg.ridge} to covariance diagonal for stability.")
             Sigma = Sigma + np.eye(self.param_dim, dtype=np.float64) * self.cfg.ridge
 
         # Eigenvalue clamp: Sigma = Q diag(max(lam, floor)) Q^T
@@ -290,8 +291,11 @@ class GlobalArchiveFullCovEDA:
                 L = np.linalg.cholesky(Sigma_scaled + np.eye(self.param_dim) * jitter)
                 break
             except np.linalg.LinAlgError:
+                print("Cholesky failed, adding jitter:", jitter)
                 jitter = max(1e-12, 10.0 * (jitter if jitter > 0 else 1e-12))
         if L is None:
+            print("Cholesky failed even after jitter:", jitter)
+            print("Falling back to eigen decomposition for sampling.")
             # Last resort: fall back to diagonal from eigenvalues
             lam, Q = np.linalg.eigh(Sigma_scaled)
             lam = np.maximum(lam, self.cfg.eigen_floor)
