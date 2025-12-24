@@ -21,6 +21,7 @@ Adjust:
 import os
 import time
 import json
+import sys
 import numpy as np
 import multiprocessing as mp
 from dataclasses import dataclass
@@ -94,7 +95,7 @@ def evaluate_policy_worker(args):
       max_steps: int
       n_substeps: int
     """
-    params, env_builder, hidden_dim, n_episodes, base_seed, max_steps, n_substeps = args
+    idx, params, env_builder, hidden_dim, n_episodes, base_seed, max_steps, n_substeps = args
 
     total = 0.0
     for ep in range(n_episodes):
@@ -123,7 +124,7 @@ def evaluate_policy_worker(args):
         env.close()
         total += ep_reward
 
-    return total / float(n_episodes)
+    return idx, total / float(n_episodes)
 
 
 # ============================================================
@@ -133,10 +134,10 @@ def evaluate_policy_worker(args):
 @dataclass
 class EDAConfig:
     # Population / archive
-    population_size: int = 96
-    elite_size: int = 32                  # elites selected from *global* archive
-    archive_max_size: int = 2000          # keep only best K overall
-    min_archive_to_fit: int = 64          # before this, keep exploring (broad sampling)
+    population_size: int = 1000
+    elite_size: int = 1000                  # elites selected from *global* archive
+    archive_max_size: int = 10000          # keep only best K overall
+    min_archive_to_fit: int = 3000          # before this, keep exploring (broad sampling)
 
     # Policy
     hidden_dim: int = 32
@@ -352,6 +353,15 @@ def main():
     print(f"Logging to: {log_path}")
     print(f"Best params will be saved to: {best_path}")
 
+    def render_progress(gen_idx: int, done: int, total: int, bar_width: int = 30):
+        if total <= 0:
+            return
+        filled = int(round(bar_width * done / float(total)))
+        bar = "#" * filled + "-" * (bar_width - filled)
+        msg = f"\rGen {gen_idx:04d} eval [{bar}] {done}/{total}"
+        sys.stdout.write(msg)
+        sys.stdout.flush()
+
     with ctx.Pool(processes=n_workers) as pool, open(log_path, "w", encoding="utf-8") as logf:
         best_seen = -np.inf
 
@@ -361,6 +371,7 @@ def main():
 
             tasks = [
                 (
+                    i,
                     params,
                     env_builder,
                     cfg.hidden_dim,
@@ -369,11 +380,18 @@ def main():
                     cfg.max_steps,
                     cfg.n_substeps,
                 )
-                for params in population
+                for i, params in enumerate(population)
             ]
 
-            fitness = pool.map(evaluate_policy_worker, tasks)
-            fitness = np.asarray(fitness, dtype=np.float64)
+            fitness = np.empty(len(population), dtype=np.float64)
+            done = 0
+            render_progress(gen, done, len(population))
+            for idx, fit in pool.imap_unordered(evaluate_policy_worker, tasks, chunksize=1):
+                fitness[idx] = fit
+                done += 1
+                render_progress(gen, done, len(population))
+            sys.stdout.write("\n")
+            sys.stdout.flush()
 
             # Update archive with every evaluated individual
             eda.add_to_archive(population, fitness.tolist())
