@@ -11,7 +11,7 @@ Agent::Agent(System* system_, const Vec2& position_,
       collectionRadius(collectionRadius_), 
       maxControlForce(maxControlForce_),
       cargoCapacity(cargoCapacity_) {
-    name = "Agent";
+    name = "Agent of " + home->name;
 }
 
 void Agent::applyControlForce(const Vec2& force) {
