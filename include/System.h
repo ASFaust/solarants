@@ -1,6 +1,7 @@
 #ifndef SYSTEM_H
 #define SYSTEM_H
 #include <vector>
+#include <list>
 #include <unordered_map>
 #include <string>
 #include <pybind11/pybind11.h>
@@ -11,6 +12,8 @@ namespace py = pybind11;
 #include "Vec2.h"
 #include "Body.h"
 #include "Agent.h"
+#include "Celestial.h"
+#include "Resource.h"
 
 //A 2D solar system simulation
 
@@ -24,7 +27,7 @@ public:
     double G; //gravitational constant
     void step(int n);
 
-    void addBody(
+    void addCelestial(
         const string& name, 
         Vec2 position, 
         Vec2 velocity, 
@@ -33,9 +36,9 @@ public:
         bool emitGravity);
 
     //e.g. to split a mass into a moon orbiting a host body
-    void splitBody(
+    void splitCelestial(
         const string& hostName,
-        const string& splitBodyName,
+        const string& splitCelestialName,
         double mass,
         double density,
         bool emitGravity,
@@ -48,22 +51,42 @@ public:
     //agents spawn somewhere on the surface of their host body
     //other than all other bodies, agents are defined by mass and radius instead of mass and density
     void addAgent(
-        const string& hostBodyName,
-        const string& agentName,
+        const string& hostName,
         double mass,
         double radius, 
         double initial_angle, //where on the surface to spawn. in radians
-        bool emitGravity
+        double collectionRadius,
+        double maxControlForce,
+        double cargoCapacity
     ); 
 
-    Body* getBodyByName(const string& name) const;
+    void addResourceInOrbit(
+        const string& hostName,
+        double mass,
+        double density,
+        double orbital_radius,
+        double initial_angle,
+        double ellipsity,
+        bool prograde
+    );
 
-    vector<Body*> allBodies;
-    vector<Body*> allCelestialBodies; // bodies that are not agents
+    void addResourceOnSurface(
+        const string& hostName,
+        double mass,
+        double density,
+        double initial_angle //where on the surface to spawn. in radians
+    );
+
+    Celestial* getCelestialByName(const string& name) const;
+
+    vector<Body*> bodies;
+    vector<Celestial*> celestials; 
+    vector<Agent*> agents;
+    list<Resource*> resources;
     vector<Body*> gravityGeneratingBodies;
-    vector<Agent*> allAgents;
 
     void resolveCollisions(); 
+    void computeAgentLogic(); 
 
     Vec2 calculateGravity(Body* targetBody);
     Vec2 calculateGravity(const Vec2& location) const;

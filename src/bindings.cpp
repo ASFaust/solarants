@@ -8,6 +8,8 @@
 #include "System.h"
 #include "Vec2.h"
 #include "Body.h"
+#include "Agent.h"
+#include "Resource.h"
 
 PYBIND11_MODULE(solarants, m) {
     m.doc() = "Core bindings for SolarAnts simulation";
@@ -32,16 +34,16 @@ PYBIND11_MODULE(solarants, m) {
              pybind11::arg("deltaTime"))
         .def("initialize", &System::initialize)
         .def("step", &System::step, pybind11::arg("n") = 1)
-        .def("addBody", &System::addBody,
+        .def("addCelestial", &System::addCelestial,
                 pybind11::arg("name"),
                 pybind11::arg("position"),
                 pybind11::arg("velocity"),
                 pybind11::arg("mass"),
                 pybind11::arg("density"),
                 pybind11::arg("emitGravity"))
-         .def("splitBody", &System::splitBody,     
-             pybind11::arg("name"),
-             pybind11::arg("splitBodyName"),
+         .def("splitCelestial", &System::splitCelestial,     
+             pybind11::arg("hostName"),
+             pybind11::arg("splitCelestialName"),
              pybind11::arg("mass"),
              pybind11::arg("density"),
              pybind11::arg("emitGravity"),
@@ -50,23 +52,42 @@ PYBIND11_MODULE(solarants, m) {
              pybind11::arg("ellipsity"),
              pybind11::arg("prograde")=true)
         .def("addAgent", &System::addAgent,
-            pybind11::arg("hostBodyName"),
-            pybind11::arg("agentName"),
+            pybind11::arg("hostName"),
             pybind11::arg("mass"),
             pybind11::arg("radius"),
             pybind11::arg("initial_angle"),
-            pybind11::arg("emitGravity"))
+            pybind11::arg("collectionRadius"),
+            pybind11::arg("maxControlForce"),
+            pybind11::arg("cargoCapacity"))
+        .def("addResourceInOrbit", &System::addResourceInOrbit,
+            pybind11::arg("hostName"),
+            pybind11::arg("mass"),
+            pybind11::arg("density"),
+            pybind11::arg("orbital_radius"),
+            pybind11::arg("initial_angle"),
+            pybind11::arg("ellipsity"),
+            pybind11::arg("prograde"))
+        .def("addResourceOnSurface", &System::addResourceOnSurface,
+            pybind11::arg("hostName"),
+            pybind11::arg("mass"),
+            pybind11::arg("density"),
+            pybind11::arg("initial_angle"))
         .def("getTotalEnergy", &System::getTotalEnergy)
         .def_property_readonly("bodies",
             [](System& self) -> std::vector<Body*>& {
-                return self.allBodies;
+                return self.bodies;
             },
-        py::return_value_policy::reference_internal)
+        pybind11::return_value_policy::reference_internal)
+        .def_property_readonly("resources", 
+            [](System& self) -> std::list<Resource*>& {
+                return self.resources;
+            },
+        pybind11::return_value_policy::reference_internal)
         .def_property_readonly("agents", 
             [](System& self) -> std::vector<Agent*>& {
-                return self.allAgents;
+                return self.agents;
             },
-        py::return_value_policy::reference_internal)
+        pybind11::return_value_policy::reference_internal)
         //then the calculateGravity function which takes in a Vec2 and produces a Vec2
         .def("calculateGravity", [](System& self, const Vec2& location) {
             return self.calculateGravity(location);
@@ -80,12 +101,13 @@ PYBIND11_MODULE(solarants, m) {
         .def_readwrite("position", &Body::position)
         .def_readwrite("velocity", &Body::velocity)
         .def_readonly("name", &Body::name)
-        .def_property_readonly("surfaceGravity", &Body::getSurfaceGravity)
-        .def_property_readonly("domainRadius", &Body::getDomainRadius);
+        .def_property_readonly("surfaceGravity", &Body::getSurfaceGravity);
+
+    pybind11::class_<Resource, Body>(m, "Resource");
 
     pybind11::class_<Agent, Body>(m, "Agent")
-        .def_readonly("hostBody", &Agent::hostBody)
         .def_readwrite("controlForce", &Agent::controlForce)
         .def("applyControlForce", &Agent::applyControlForce)
-        .def("getSensorReadings", &Agent::getSensorReadings);
+        .def("getSensorReadings", &Agent::getSensorReadings)
+        .def("computeReward", &Agent::computeReward);
 }

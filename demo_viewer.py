@@ -1,5 +1,6 @@
 import numpy as np
 import time 
+import random
 
 from solarants import System
 from viewer import Viewer
@@ -22,7 +23,7 @@ def build_system():
         deltaTime=delta_time,
     )
 
-    system.addBody(
+    system.addCelestial(
         "sun",
         (0,0),  # position
         (0,0),  # velocity
@@ -31,7 +32,7 @@ def build_system():
         True   # emits gravity
     )
 
-    system.splitBody(
+    system.splitCelestial(
         "sun",
         "planet1",
         planet_mass,
@@ -43,7 +44,7 @@ def build_system():
     )
 
     # add a moon to planet1
-    system.splitBody(
+    system.splitCelestial(
         "planet1",
         "moon1",
         0.01,   # mass
@@ -55,47 +56,87 @@ def build_system():
     )
     
     #  Add a second planet
-    system.splitBody(
+    system.splitCelestial(
         "sun",
         "planet2",
         planet_mass,
-        1.0,    # density
+        0.25,    # density
         True,   # emits gravity
         typical_orbital_radius * 3.0,
         np.pi / 4.0,    # initial angle
         1.2,     # ellipsity
-        False   # retrograde orbit
+        True
     )
-    # and a small moon to planet2
-    system.splitBody(
+
+    #add resources around the twin planets (farther out)
+    for i in range(30):
+        system.addResourceInOrbit(
+            "planet2",
+            0.0001,  # mass
+            1.0,    # density
+            25,
+            np.random.uniform(0.0, 2.0 * np.pi),    # initial angle
+            np.random.uniform(0.8, 1.2),     # ellipsity
+            True     # prograde
+        )
+
+    #split planet2 into two twin planets
+    system.splitCelestial(
         "planet2",
-        "moon2",
-        0.01,   # mass
-        1.0,    # density
+        "planet2.5", #twin planets
+        planet_mass * 0.5, #
+        0.25,    # density
         True,   # emits gravity
         15.0,  # orbital radius
         np.pi / 2.0,    # initial angle
-        0.8     # ellipsity
+        1.0,     # ellipsity
+        False     # Retrograde
     )
-
-    """
-            .def("addAgent", &System::addAgent,
-            pybind11::arg("hostBodyName"),
-            pybind11::arg("agentName"),
-            pybind11::arg("mass"),
-            pybind11::arg("radius"),
-            pybind11::arg("initial_angle"),
-            pybind11::arg("emitGravity"))
-        """
 
     system.addAgent(
         "planet1",
-        "agent1",
         0.001,  # mass
         0.05,    # radius
         3.14 * 0.5,    # initial angle
-        False    # emits gravity
+        1.0, #collection radius
+        23.0 * 0.001, # max control force: mass* surface gravity of planet1
+        0.001 # cargo capacity
     )
+
+    #add some resources in close orbit around planet1
+    for i in range(20):
+        system.addResourceInOrbit(
+            "planet1",
+            0.0001,  # mass
+            1.0,    # density
+            5.0 + np.random.uniform(-2.0, 2.0),  # orbital radius
+            np.random.uniform(0.0, 2.0 * np.pi),    # initial angle
+            np.random.uniform(0.5, 1.5),     # ellipsity
+            True     # prograde
+        )
+
+    #add some resources on the surface of moon1
+    for i in range(30):
+        system.addResourceOnSurface(
+            "moon1",
+            0.0001,  # mass
+            1.0,    # density
+            i * (2.0 * np.pi / 30.0)    # initial angle
+        )
+
+    #add some resources in orbit around sun
+    for i in range(50):
+        system.addResourceInOrbit(
+            "sun",
+            0.0001,  # mass
+            1.0,    # density
+            1500.0 + np.random.uniform(-300.0, 300.0),  # orbital radius
+            np.random.uniform(0.0, 2.0 * np.pi),    # initial angle
+            np.random.uniform(0.7, 1.3),     # ellipsity
+            True     # prograde
+        )
+
+
 
     system.initialize()
     return system

@@ -13,6 +13,8 @@ ext_modules = [
             'src/System.cpp',
             'src/Body.cpp',
             'src/Agent.cpp',
+            'src/Resource.cpp',
+            'src/Celestial.cpp'
         ],
         include_dirs=[
             "include/",

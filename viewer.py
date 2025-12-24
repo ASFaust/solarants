@@ -43,6 +43,7 @@ class Viewer:
         self._last_bodies: List[object] = []
         self._last_body_by_name: Dict[str, object] = {}
         self._last_names: List[str] = []
+        self._last_resources: List[object] = []
 
         self._ruler_active = False
         self._ruler_start: Optional[np.ndarray] = None
@@ -170,7 +171,6 @@ class Viewer:
             entries.append(("density", fmt(body.density)))
             entries.append(("radius", fmt(body.radius)))
             entries.append(("surface gravity", fmt(body.surfaceGravity)))
-            entries.append(("domain radius", fmt(body.domainRadius)))
 
         label_widths = [self._font.size(f"{label}:")[0] for label, _ in entries]
         max_label_width = max(label_widths, default=0)
@@ -210,6 +210,13 @@ class Viewer:
             pygame.draw.circle(surface, color, px, radius_px)
             if name == self.focus_name:
                 pygame.draw.circle(surface, (255, 200, 50), px, max(radius_px + 3, 6), 2)
+
+    def _draw_resources(self, surface: pygame.Surface):
+        for resource in self._last_resources:
+            pos = np.array([resource.position[0], resource.position[1]], dtype=np.float64)
+            px = self.sim_to_screen(pos)
+            radius_px = max(2, int(round(resource.radius * self.zoom)))
+            pygame.draw.circle(surface, (220, 160, 60), px, radius_px)
 
     def _update_trails(self):
         min_delta2 = self.trail_min_delta * self.trail_min_delta
@@ -388,6 +395,7 @@ class Viewer:
             self._last_bodies = list(self.system.bodies)
             self._last_body_by_name = {body.name: body for body in self._last_bodies}
             self._last_names = sorted(self._last_body_by_name.keys())
+            self._last_resources = list(self.system.resources)
             self._mouse_pos = pygame.mouse.get_pos()
             self._update_hover()
             self._update_camera_follow()
@@ -396,6 +404,7 @@ class Viewer:
             screen.fill((0, 0, 0))
             self._draw_trails(screen)
             self._draw_bodies(screen)
+            self._draw_resources(screen)
             self._draw_hover_gravity(screen)
             self._draw_ruler(screen)
             self._draw_hud(screen)
