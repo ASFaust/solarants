@@ -164,7 +164,7 @@ class EDAConfig:
     # Misc
     generations: int = 100
     seed: int = 42
-    n_workers: int | None = 20          # None = use all cores
+    n_workers = 20          # None = use all cores
 
 
 class GlobalArchiveFullCovEDA:
