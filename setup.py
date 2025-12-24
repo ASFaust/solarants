@@ -20,7 +20,7 @@ ext_modules = [
             "include/",
         ],
         language='c++',
-        extra_compile_args=['-O3', '-std=c++23'],
+        extra_compile_args=['-O3', '-std=c++17'],
         ),
 ]
 
