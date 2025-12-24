@@ -10,6 +10,7 @@ class Viewer:
     def __init__(
         self,
         system,
+        control_handle,
         width: int = 1200,
         height: int = 1200,
         initial_zoom: float = 0.25,
@@ -25,6 +26,7 @@ class Viewer:
         self.width = int(width)
         self.height = int(height)
         self.window_name = window_name
+        self.control_handle = control_handle
 
         self.center = np.array([0.0, 0.0], dtype=np.float64)
         self.zoom = float(initial_zoom)
@@ -371,7 +373,9 @@ class Viewer:
                     screen = pygame.display.set_mode((self.width, self.height), pygame.RESIZABLE)
 
             if not self.paused:
-                self.system.step(self.substeps_per_frame)
+                for _ in range(self.substeps_per_frame):
+                    self.control_handle() #call the controlling function to set control forces
+                    self.system.step(1)
                 self._sim_steps += self.substeps_per_frame
             now = time.perf_counter()
             if self.paused:

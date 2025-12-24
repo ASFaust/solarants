@@ -106,7 +106,6 @@ PYBIND11_MODULE(solarants, m) {
     pybind11::class_<Resource, Body>(m, "Resource");
 
     pybind11::class_<Agent, Body>(m, "Agent")
-        .def_readwrite("controlForce", &Agent::controlForce)
         .def("applyControlForce", &Agent::applyControlForce)
         .def("getSensorReadings", &Agent::getSensorReadings)
         .def("computeReward", &Agent::computeReward);

@@ -43,7 +43,7 @@ void System::addCelestial(
     }
 }
 
-vvoid System::splitCelestial(
+void System::splitCelestial(
     const string& hostName,
     const string& splitCelestialName,
     double mass,

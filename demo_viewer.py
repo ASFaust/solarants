@@ -137,14 +137,21 @@ def build_system():
         )
 
 
-
     system.initialize()
     return system
 
 
 def main():
     system = build_system()
-    viewer = Viewer(system, substeps_per_frame=1, initial_zoom=0.25)
+
+    def control_handle():
+        agent = system.agents[0]
+        agent.applyControlForce((0.0, 0.8))  # initial zero control force
+        state = agent.getSensorReadings()  # initial sensor readings
+        rew = agent.computeReward()  # initial reward
+    
+
+    viewer = Viewer(system,control_handle, substeps_per_frame=1, initial_zoom=0.25)
     viewer.run()
 
 
