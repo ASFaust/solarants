@@ -41,7 +41,7 @@ class SolarAntsEnv(gym.Env):
         self.observation_space = spaces.Box(
             low=-np.inf,
             high=np.inf,
-            shape=(18,),
+            shape=(29,),
             dtype=np.float64,
         )
 
