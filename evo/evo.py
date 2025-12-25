@@ -112,10 +112,9 @@ class Evo:
         g = torch.from_numpy(np.asarray(genome, dtype=np.float32)).to(self.device)
         return float(self.model(g).item())
 
-    def mutate_genome(self, genome, mutation_rate=0.1, sigma=0.1):
+    def mutate_genome(self, genome, sigma=0.1):
         g = np.asarray(genome, dtype=np.float32).copy()
-        mask = self.rng.random(g.shape[0]) < mutation_rate
-        g[mask] += self.rng.normal(0.0, sigma, size=int(mask.sum())).astype(np.float32)
+        g += np.random.normal(scale=sigma, size=g.shape).astype(np.float32)
         return g
 
     def optimize_genome_with_model(
@@ -167,7 +166,6 @@ class Evo:
     def step_generation(
         self,
         model_train_steps=10000,
-        mutation_rate=0.1,
         mutation_sigma=0.01,
         repel_dist=0.1,
     ):
