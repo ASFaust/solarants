@@ -121,10 +121,9 @@ class Evo:
     def optimize_genome_with_model(
         self,
         genome: np.ndarray,
-        parent: np.ndarray,
         existing_pop: list,
         steps: int = 60,
-        lr: float = 3e-2,
+        lr: float = 0.01,
         repel_radius: float = 0.1,
         repel_lambda: float = 2.0
     ):
@@ -134,7 +133,6 @@ class Evo:
         """
         self.model.eval()
 
-        parent_t = torch.from_numpy(np.asarray(parent, dtype=np.float32)).to(self.device)
 
         x = torch.tensor(np.asarray(genome, dtype=np.float32), device=self.device, requires_grad=True)
         opt = torch.optim.Adam([x], lr=lr)
@@ -148,10 +146,6 @@ class Evo:
 
         for _ in range(steps):
             pred = self.model(x).squeeze()
-
-            # Trust region: penalize distance from parent
-            dx = x - parent_t
-            dist_to_parent = torch.norm(dx)
 
             # Repulsion: smooth barrier when closer than repel_radius to any existing genome
             repel_pen = torch.tensor(0.0, device=self.device)
@@ -174,7 +168,7 @@ class Evo:
         self,
         model_train_steps=10000,
         mutation_rate=0.1,
-        mutation_sigma=0.1,
+        mutation_sigma=0.01,
         repel_dist=0.1,
     ):
         # 1) Evaluate and store data
@@ -197,11 +191,11 @@ class Evo:
         while len(new_pop) < self.population_size:
             print(f"\r  Sampling individual {len(new_pop)+1}/{self.population_size}", end="", flush=True)
             parent = random.choice(elites)
-            child = self.mutate_genome(parent, mutation_rate=mutation_rate, sigma=mutation_sigma)
+            child = self.mutate_genome(parent, sigma=mutation_sigma)
             child = self.optimize_genome_with_model(
-                child, parent, new_pop,
-                steps=60,
-                lr=3e-2,
+                child, new_pop,
+                steps=40,
+                lr=0.01,
                 repel_radius=repel_dist,
                 repel_lambda=2.0,
             )
