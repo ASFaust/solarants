@@ -39,8 +39,8 @@ def build_system():
         1.0,    # density
         True,   # emits gravity
         typical_orbital_radius,
-        0.0,    # initial angle
-        1.0     # ellipsity
+        np.random.uniform(0.0, 2.0 * np.pi),    # initial angle
+        1.0 + np.random.uniform(-0.1, 0.1)     # ellipsity
     )
 
     # add a moon to planet1
@@ -51,8 +51,8 @@ def build_system():
         1.0,    # density
         True,   # emits gravity
         10.0,  # orbital radius
-        0.0,    # initial angle
-        1.0     # ellipsity
+        np.random.uniform(0.0, 2.0 * np.pi),    # initial angle
+        1.0 + np.random.uniform(-0.1, 0.1)     # ellipsity
     )
     
     #  Add a second planet
@@ -63,8 +63,8 @@ def build_system():
         0.25,    # density
         True,   # emits gravity
         typical_orbital_radius * 3.0,
-        np.pi / 4.0,    # initial angle
-        1.2,     # ellipsity
+        np.random.uniform(0.0, 2.0 * np.pi),    # initial angle
+        1.0 + np.random.uniform(-0.2, 0.2),     # ellipsity
         True
     )
 
@@ -88,8 +88,8 @@ def build_system():
         0.25,    # density
         True,   # emits gravity
         15.0,  # orbital radius
-        np.pi / 2.0,    # initial angle
-        1.0,     # ellipsity
+        np.random.uniform(0.0, 2.0 * np.pi),    # initial angle
+        1.0 + np.random.uniform(-0.1, 0.1),     # ellipsity
         False     # Retrograde
     )
 
@@ -97,7 +97,7 @@ def build_system():
         "planet1",
         0.001,  # mass
         0.05,    # radius
-        3.14 * 0.5,    # initial angle
+        np.random.uniform(0.0, 2.0 * np.pi),    # initial angle
         1.0, #collection radius
         23.0 * 0.001, # max control force: mass* surface gravity of planet1
         0.001 # cargo capacity
@@ -145,6 +145,7 @@ def main():
     system = build_system()
 
     def control_handle():
+        return
         agent = system.agents[0]
         agent.applyControlForce((0.0, 0.8))  # initial zero control force
         state = agent.getSensorReadings()  # initial sensor readings

@@ -145,7 +145,7 @@ class EDAConfig:
     # Evaluation
     eval_episodes: int = 3                # increase to 3 later for robustness
     max_steps: int = 10000
-    n_substeps: int = 1
+    n_substeps: int = 2
 
     # Init diversity
     init_mix_sigmas: tuple = (0.01, 0.1, 0.5)
@@ -380,7 +380,7 @@ def main():
                     env_builder,
                     cfg.hidden_dim,
                     cfg.eval_episodes,
-                    base_seed,
+                    base_seed, 
                     cfg.max_steps,
                     cfg.n_substeps,
                 )

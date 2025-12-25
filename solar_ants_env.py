@@ -91,8 +91,8 @@ class SolarAntsEnv(gym.Env):
             1.0,
             True,
             typical_orbital_radius,
-            0.0,
-            1.0,
+            np.random.uniform(0.0, 2.0 * np.pi),
+            1.0 + np.random.uniform(-0.1, 0.1),
         )
 
         system.splitCelestial(
@@ -102,8 +102,8 @@ class SolarAntsEnv(gym.Env):
             1.0,
             True,
             10.0,
-            0.0,
-            1.0,
+            np.random.uniform(0.0, 2.0 * np.pi),
+            1.0 + np.random.uniform(-0.1, 0.1),
         )
 
         system.splitCelestial(
@@ -113,8 +113,8 @@ class SolarAntsEnv(gym.Env):
             0.25,
             True,
             typical_orbital_radius * 3.0,
-            np.pi / 4.0,
-            1.2,
+            np.random.uniform(0.0, 2.0 * np.pi),
+            1.0 + np.random.uniform(-0.2, 0.2),
             True,
         )
 
@@ -136,8 +136,8 @@ class SolarAntsEnv(gym.Env):
             0.25,
             True,
             15.0,
-            np.pi / 2.0,
-            1.0,
+            np.random.uniform(0.0, 2.0 * np.pi),
+            1.0 + np.random.uniform(-0.1, 0.1),
             False,
         )
 
@@ -145,8 +145,8 @@ class SolarAntsEnv(gym.Env):
             "planet1",
             0.001,
             0.05,
-            np.pi * 0.5,
-            1.0,
+            np.random.uniform(0.0, 2.0 * np.pi),
+            1.0, #collection radis
             23.0 * 0.001,
             0.001,
         )
@@ -190,6 +190,8 @@ class SolarAntsEnv(gym.Env):
 
     def reset(self, *, seed=None, options=None):
         super().reset(seed=seed)
+
+        np.random.seed(seed)
 
         self.system = self.system_builder()
         self.agent = self.system.agents[0]

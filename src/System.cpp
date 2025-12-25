@@ -272,7 +272,6 @@ void System::computeAgentLogic() {
     * If we are near the home celestial and have cargo, drop off cargo, set reward flag for amount of cargo dropped off
     */
     for (Agent* agent : agents) {
-        vector<int> resourcesToRemove;
 
         for (auto it = resources.begin(); it != resources.end(); ) {
             Resource* res = *it;
