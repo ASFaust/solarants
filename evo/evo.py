@@ -172,7 +172,7 @@ class Evo:
 
     def step_generation(
         self,
-        model_train_steps=1200,
+        model_train_steps=10000,
         mutation_rate=0.1,
         mutation_sigma=0.1,
         repel_dist=0.1,
@@ -204,7 +204,6 @@ class Evo:
                 lr=3e-2,
                 repel_radius=repel_dist,
                 repel_lambda=2.0,
-                hard_clip=False,
             )
             new_pop.append(child)
 
