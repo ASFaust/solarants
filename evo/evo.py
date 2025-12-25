@@ -125,15 +125,11 @@ class Evo:
         existing_pop: list,
         steps: int = 60,
         lr: float = 3e-2,
-        trust_radius: float = 0.3,
-        trust_lambda: float = 5.0,
         repel_radius: float = 0.1,
-        repel_lambda: float = 2.0,
-        hard_clip: bool = True,
+        repel_lambda: float = 2.0
     ):
         """
         Maximize model(genome) with:
-          - trust region to parent (quadratic penalty, optional hard clip)
           - repulsion from already-chosen genomes (smooth barrier)
         """
         self.model.eval()
@@ -156,7 +152,6 @@ class Evo:
             # Trust region: penalize distance from parent
             dx = x - parent_t
             dist_to_parent = torch.norm(dx)
-            trust_pen = trust_lambda * torch.clamp(dist_to_parent - trust_radius, min=0.0) ** 2
 
             # Repulsion: smooth barrier when closer than repel_radius to any existing genome
             repel_pen = torch.tensor(0.0, device=self.device)
@@ -164,22 +159,14 @@ class Evo:
                 # distances to all others
                 d = torch.norm(others - x.unsqueeze(0), dim=1)  # [N]
                 # barrier activates when d < repel_radius
-                repel_pen = repel_lambda * torch.mean(torch.clamp(repel_radius - d, min=0.0) ** 2) 
+                repel_pen = repel_lambda * torch.sum(torch.clamp(repel_radius - d, min=0.0) ** 2) 
 
             # We maximize pred, so minimize (-pred + penalties)
-            loss = -pred + trust_pen + repel_pen
+            loss = -pred + repel_pen
 
             opt.zero_grad(set_to_none=True)
             loss.backward()
             opt.step()
-
-            if hard_clip:
-                # hard projection back into trust ball around parent
-                with torch.no_grad():
-                    dx = x - parent_t
-                    norm = torch.norm(dx)
-                    if norm > trust_radius:
-                        x.copy_(parent_t + dx / (norm + 1e-8) * trust_radius)
 
         return x.detach().cpu().numpy().astype(np.float32)
 
@@ -215,11 +202,9 @@ class Evo:
                 child, parent, new_pop,
                 steps=60,
                 lr=3e-2,
-                trust_radius=0.35,
-                trust_lambda=6.0,
                 repel_radius=repel_dist,
-                repel_lambda=0.25,
-                hard_clip=True,
+                repel_lambda=2.0,
+                hard_clip=False,
             )
             new_pop.append(child)
 

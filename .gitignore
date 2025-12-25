@@ -42,3 +42,8 @@ coverage.xml
 *.cover
 *.py,cover
 .hypothesis/
+
+*.npy
+*.npz
+*.pt
+*.pth
