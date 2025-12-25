@@ -73,25 +73,18 @@ PYBIND11_MODULE(solarants, m) {
             pybind11::arg("density"),
             pybind11::arg("initial_angle"))
         .def("getTotalEnergy", &System::getTotalEnergy)
-        .def_property_readonly("bodies",
-            [](System& self) -> std::vector<Body*>& {
-                return self.bodies;
-            },
+        .def_readonly("bodies",&System::bodies, 
+            pybind11::return_value_policy::reference_internal)
+        .def_readonly("celestials",&System::celestials,
         pybind11::return_value_policy::reference_internal)
-        .def_property_readonly("resources", 
-            [](System& self) -> std::list<Resource*>& {
-                return self.resources;
-            },
+        .def_readonly("resources",&System::resources,
         pybind11::return_value_policy::reference_internal)
-        .def_property_readonly("agents", 
-            [](System& self) -> std::vector<Agent*>& {
-                return self.agents;
-            },
+        .def_readonly("agents", &System::agents,
         pybind11::return_value_policy::reference_internal)
         //then the calculateGravity function which takes in a Vec2 and produces a Vec2
-        .def("calculateGravity", [](System& self, const Vec2& location) {
-            return self.calculateGravity(location);
-        });
+        //needs to be a lambda to aid template deduction
+        .def("calculateGravity",
+            py::overload_cast<const Vec2&>(&System::calculateGravity, py::const_));
         
     
     pybind11::class_<Body>(m, "Body")
@@ -104,9 +97,11 @@ PYBIND11_MODULE(solarants, m) {
         .def_property_readonly("surfaceGravity", &Body::getSurfaceGravity);
 
     pybind11::class_<Resource, Body>(m, "Resource");
+    pybind11::class_<Celestial, Body>(m, "Celestial");
 
     pybind11::class_<Agent, Body>(m, "Agent")
         .def("applyControlForce", &Agent::applyControlForce)
         .def("getSensorReadings", &Agent::getSensorReadings)
-        .def("computeReward", &Agent::computeReward);
+        .def("computeReward", &Agent::computeReward)
+        .def_property_readonly("cargoStatus", &Agent::getCargoStatus);
 }

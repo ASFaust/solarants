@@ -10,6 +10,8 @@ class Resource : public Body {
     public:
         Resource(System* system_, const Vec2& position_, 
             const Vec2& velocity_, double mass_, double density_);
+
+        static std::size_t global_id;
             
 };
     

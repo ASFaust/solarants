@@ -7,6 +7,12 @@ Body::Body(System* system_, const Vec2& position_, const Vec2& velocity_, double
     velocity = velocity_;
     mass = mass_;
     invMass = 1.0 / mass;
+    if (mass_ <= 0.0) {
+        throw std::runtime_error("Mass must be positive");
+    }
+    if (density_ <= 0.0) {
+        throw std::runtime_error("Density must be positive");
+    }
     density = density_;
     computeRadius();
     computeSurfaceGravity();
@@ -24,12 +30,18 @@ double Body::getSurfaceGravity() const {
 void Body::setMass(double m) {
     mass = m;
     invMass = 1.0 / mass;
+    if (mass <= 0.0) {
+        throw std::runtime_error("Mass must be positive");
+    }
     computeRadius();
     computeSurfaceGravity();
 }
 
 void Body::setDensity(double d) {
     density = d;
+    if (density <= 0.0) {
+        throw std::runtime_error("Density must be positive");
+    }
     computeRadius();
     computeSurfaceGravity();
 }

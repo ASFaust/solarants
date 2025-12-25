@@ -229,8 +229,6 @@ void System::initialize(){
 
 void System::step(int n) {
     for (int i = 0; i < n; ++i) {   
-        Vec2 totalVelocity(0.0, 0.0);
-
 
         // 1. drift
         for (Body* body : bodies) {

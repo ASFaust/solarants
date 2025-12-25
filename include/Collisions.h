@@ -24,6 +24,9 @@ inline void collide(
     double radiusSum = A->getRadius() + B->getRadius();
     double radiusSum2 = radiusSum * radiusSum;
 
+    if (!std::isfinite(dist2))
+        return;
+
     // No collision or degenerate case
     if (dist2 >= radiusSum2 || dist2 < eps2)
         return;
@@ -97,16 +100,20 @@ inline double collideCelestial(
     double frictionCoeff = 0.5,
     double penetrationPercent = 0.2,
     double slop = 1e-6,
-    double eps2 = 1e-20
+    double eps2 = 1e-12
 ) {
     //B's invMass is zero, so we can optimize a bit
     Vec2 deltaPos = B->position - A->position;
-    double dist2 = deltaPos.norm2();    
+    double dist2 = deltaPos.norm2();
     double radiusSum = A->getRadius() + B->getRadius();
     double radiusSum2 = radiusSum * radiusSum;
     // No collision or degenerate case
+    if (!std::isfinite(dist2))
+        return 0.0;
+
     if (dist2 >= radiusSum2 || dist2 < eps2)
         return 0.0;
+
     double dist = std::sqrt(dist2);
     Vec2 normal = deltaPos / dist;
     // Relative velocity

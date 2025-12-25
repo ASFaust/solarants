@@ -25,7 +25,12 @@ public:
     void applyControlForce(const Vec2& force);
     vector<double> getSensorReadings() const;
     double computeReward();
+    inline double getCargoStatus() const { 
+        return cargoCapacity > 0.0 ? currentCargo / cargoCapacity : 0.0; 
+    }
     inline void setCollided(double collisionSpeed_) { collisionSpeed = collisionSpeed_; }
+
+    static std::size_t global_id;
 };
 
 #endif // AGENT_H

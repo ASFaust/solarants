@@ -1,6 +1,8 @@
 #include "Agent.h"
 #include "System.h"
 
+std::size_t Agent::global_id = 0;
+
 Agent::Agent(System* system_, const Vec2& position_, 
     const Vec2& velocity_, double mass_, 
     double density_, Celestial* home_,
@@ -11,7 +13,7 @@ Agent::Agent(System* system_, const Vec2& position_,
       collectionRadius(collectionRadius_), 
       maxControlForce(maxControlForce_),
       cargoCapacity(cargoCapacity_) {
-    name = "Agent of " + home->name;
+    name = "Agent " + std::to_string(++global_id) + " of " + home->name;
 }
 
 void Agent::applyControlForce(const Vec2& force) {

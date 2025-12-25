@@ -3,6 +3,8 @@
 
 #include <cmath>
 #include <cstdint>
+#include <stdexcept>
+#include <string>
 
 struct Vec2 {
     double x;
@@ -43,6 +45,17 @@ struct Vec2 {
         if (n2 < eps) return {0.0, 0.0};
         double inv = 1.0 / std::sqrt(n2);
         return {x * inv, y * inv};
+    }
+
+    inline void checkHealth(const std::string& context) const {
+        std::string err;
+        if (std::isnan(x)) err += "Vec2 x is NaN. ";
+        if (std::isnan(y)) err += "Vec2 y is NaN. ";
+        if (std::isinf(x)) err += "Vec2 x is Inf. ";
+        if (std::isinf(y)) err += "Vec2 y is Inf. ";
+        if (!err.empty()) {
+            throw std::runtime_error(std::string("Vec2 health check failed (") + context + std::string("): ") + err);
+        }
     }
 };
 

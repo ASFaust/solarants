@@ -1,6 +1,6 @@
 from collections import deque
 import time
-from typing import Deque, Dict, List, Optional, Tuple
+from typing import Deque, Dict, List, Optional, Set, Tuple
 
 import numpy as np
 import pygame
@@ -43,8 +43,10 @@ class Viewer:
 
         self._mouse_pos = (0, 0)
         self._last_bodies: List[object] = []
+        self._last_agents: List[object] = []
         self._last_body_by_name: Dict[str, object] = {}
         self._last_names: List[str] = []
+        self._last_agent_names: Set[str] = set()
         self._last_resources: List[object] = []
 
         self._ruler_active = False
@@ -173,6 +175,8 @@ class Viewer:
             entries.append(("density", fmt(body.density)))
             entries.append(("radius", fmt(body.radius)))
             entries.append(("surface gravity", fmt(body.surfaceGravity)))
+            if hasattr(body, "cargoStatus"):
+                entries.append(("cargo", f"{body.cargoStatus * 100.0:.1f}%"))
 
         label_widths = [self._font.size(f"{label}:")[0] for label, _ in entries]
         max_label_width = max(label_widths, default=0)
@@ -207,6 +211,8 @@ class Viewer:
             px = self.sim_to_screen(pos)
             radius_px = max(2, int(round(body.radius * self.zoom)))
             color = (60, 200, 60)
+            if name in self._last_agent_names:
+                color = (60, 140, 255)
             if name == self.hover_name:
                 color = (0, 255, 255)
             pygame.draw.circle(surface, color, px, radius_px)
@@ -396,9 +402,13 @@ class Viewer:
                 self._perf_last_time = now
                 self._perf_last_sim_steps = self._sim_steps
 
-            self._last_bodies = list(self.system.bodies)
+            celestials = list(self.system.celestials)
+            agents = list(self.system.agents)
+            self._last_bodies = celestials + agents
+            self._last_agents = agents
             self._last_body_by_name = {body.name: body for body in self._last_bodies}
             self._last_names = sorted(self._last_body_by_name.keys())
+            self._last_agent_names = {agent.name for agent in agents}
             self._last_resources = list(self.system.resources)
             self._mouse_pos = pygame.mouse.get_pos()
             self._update_hover()

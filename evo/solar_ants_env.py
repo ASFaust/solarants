@@ -50,7 +50,7 @@ class SolarAntsEnv(gym.Env):
     # ------------------------------------------------------------------
 
     @staticmethod
-    def demo_solar_system():
+    def system_01():
         """
         Reuses your existing demo setup verbatim.
         """
@@ -207,12 +207,14 @@ class SolarAntsEnv(gym.Env):
 
         action = np.asarray(action, dtype=np.float64)
 
+        rewards = 0.0
         for _ in range(self.n_substeps):
             self.agent.applyControlForce(action)
             self.system.step()
+            rewards += self.agent.computeReward()
 
         obs = np.asarray(self.agent.getSensorReadings(), dtype=np.float64)
-        reward = self.agent.computeReward()
+        reward = rewards
 
         terminated = False
         truncated = self.step_count >= self.max_steps
@@ -230,7 +232,8 @@ class SolarAntsEnv(gym.Env):
 
 
 if __name__ == "__main__":
-    env = SolarAntsEnv(system_builder=SolarAntsEnv.demo_solar_system)
+    print("Running a demo episode of SolarAntsEnv...")
+    env = SolarAntsEnv(system_builder=SolarAntsEnv.system_01)
     obs, info = env.reset()
     done = False
     total_reward = 0.0
