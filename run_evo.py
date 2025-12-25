@@ -6,8 +6,8 @@ import os
 
 evo = Evo(
     task=SolarAntsTask(n_trials=3),
-    population_size=10,
-    elite_k=2,
+    population_size=1000,
+    elite_k=100,
     model_lr=1e-3,
     dataset_max=100_000,
     seed=42,
