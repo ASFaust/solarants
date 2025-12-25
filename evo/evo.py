@@ -227,7 +227,8 @@ class Evo:
 
         return best, mean
 
-
+    def save_best_genome(self, path: str):
+        self.dataset.save_best(path)
 # -----------------------
 # Notes on the task API:
 # -----------------------

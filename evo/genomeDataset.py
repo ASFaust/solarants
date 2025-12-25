@@ -64,3 +64,13 @@ class GenomeDataset:
             del self.fitnesses[index]
 
         return topk_genomes
+
+    def save_best(self,path):
+        """Save the best genome to a file."""
+        if len(self.genomes) == 0:
+            raise ValueError("No genomes in dataset to save.")
+
+        best_index = np.argmax(self.fitnesses)
+        best_genome = self.genomes[best_index]
+
+        np.save(path, best_genome)
